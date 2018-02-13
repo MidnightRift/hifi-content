@@ -38,13 +38,14 @@
             velocity: {min: 0.05, max: 0.15}
         },
         HAND_STILL_FIREFLY_VALUES = {
-            extents: {min: .05, max: .1},
-            velocity: {min: 0.05, max: 0.15}
+            extents: {min: .1, max: .2},
+            velocity: {min: 0.05, max: 0.08}
         },
         REPEL_VALUES = {
             velocity: {min: 2, max: 2}
         },
         EXTENTS_BUFFER = 0.05,
+        INTERACTIVE_RANGE_MULTIPLIER = 2,
         MOVEMENT_THRESHOLD = .01,
         lastPosition = {
             left: null,
@@ -63,22 +64,20 @@
 
     function movementEngine(anchor, keys, values, skipLockCheck, repel) {
 
-        debug.send({color:'red'},'ME::', JSON.stringify(MOVEMENT_ENGINE_LOCK_KEYS));
-        debug.send({color:'red'},'ME::anchor->', JSON.stringify(anchor));
+        debug.send({color: 'red'}, 'ME::', JSON.stringify(MOVEMENT_ENGINE_LOCK_KEYS));
+        debug.send({color: 'red'}, 'ME::anchor->', JSON.stringify(anchor));
 
         for (var i = 0; i < keys.length; ++i) {
 
 
-
-
-            if (MOVEMENT_ENGINE_LOCK_KEYS.indexOf(keys[i]) === -1 || repel) {
+            if (MOVEMENT_ENGINE_LOCK_KEYS.indexOf(keys[i]) === -1 || skipLockCheck || repel) {
 
                 // 50/50 chance to move this interval.
                 if (randomNumber(0, 1) !== 1 && !repel) {
                     continue;
                 }
 
-                var ent = Entities.getEntityProperties(keys[i], ['position', 'orientation', 'name','velocity']);
+                var ent = Entities.getEntityProperties(keys[i], ['position', 'orientation', 'name', 'velocity']);
                 if (ent.name !== 'Firefly') {
                     continue;
                 }
@@ -125,7 +124,7 @@
         var forward = Vec3.sum(MyAvatar.position, Vec3.multiply(Quat.getForward(orientationRotated45Degrees), 1));
 
 
-        FIREFLY_ANCHOR_POINT = Vec3.sum(forward, Vec3.multiply(Quat.getUp(orientationRotated45Degrees), 0.5));
+        FIREFLY_ANCHOR_POINT = Vec3.sum(forward, Vec3.multiply(Quat.getUp(orientationRotated45Degrees), 0.2));
 
 
         for (var i = 0; i < makeFireflyNum; ++i) {
@@ -136,7 +135,7 @@
                 name: 'Firefly',
                 dimensions: {z: 0.02, y: 0.02, x: 0.02},
                 position: Vec3.sum(FIREFLY_ANCHOR_POINT,
-                    {x: (randomNumber(20, 50) / 100), y: (randomNumber(20, 50) / 100), z: (randomNumber(20, 50) / 100)})
+                    {x: (randomNumber(20, 80) / 100), y: (randomNumber(20, 80) / 100), z: (randomNumber(20, 80) / 100)})
             };
 
             FIREFLY_ENTITY_KEYS.push(Entities.addEntity(props, needsLocalEntity));
@@ -180,37 +179,58 @@
 
         if (overMovementThresholdLeft && leftHandDist < DEFAULT_FIREFLY_VALUES.extents.max + EXTENTS_BUFFER) {
             leftEntities = Entities.findEntities(leftHandPos, .2);
-        } else if (!overMovementThresholdLeft && elapsedTimeMS > 200) {
+        } else if (!overMovementThresholdLeft && leftHandDist < (DEFAULT_FIREFLY_VALUES.extents.max + EXTENTS_BUFFER) * INTERACTIVE_RANGE_MULTIPLIER
+            && elapsedTimeMS > 200) {
             leftEntities = Entities.findEntities(leftHandPos, .5);
         }
 
         if (overMovementThresholdRight && rightHandDist < DEFAULT_FIREFLY_VALUES.extents.max + EXTENTS_BUFFER) {
             rightEntities = Entities.findEntities(rightHandPos, .2);
-        } else if (!overMovementThresholdRight && elapsedTimeMS > 200) {
+        } else if (!overMovementThresholdRight && rightHandDist < (DEFAULT_FIREFLY_VALUES.extents.max + EXTENTS_BUFFER) * INTERACTIVE_RANGE_MULTIPLIER
+            && elapsedTimeMS > 200) {
             rightEntities = Entities.findEntities(rightHandPos, .5);
         }
 
+        function updateMovementLockKeys() {
+            MOVEMENT_ENGINE_LOCK_KEYS = leftEntities.concat(rightEntities.filter(function (item) {
+                return leftEntities.indexOf(item) === -1;
+            }));
+        }
 
-        MOVEMENT_ENGINE_LOCK_KEYS = leftEntities.concat(rightEntities.filter(function (item) {
-            return leftEntities.indexOf(item) === -1;
-        }));
 
-
-
-        debug.send('hw interval(s) next');
+        //debug.send('hw interval(s) next');
         if (overMovementThresholdLeft && leftHandDist < DEFAULT_FIREFLY_VALUES.extents.max + EXTENTS_BUFFER) {
+            updateMovementLockKeys();
             movementEngine(leftHandPos, leftEntities, REPEL_VALUES, true, true);
-        } else if (!overMovementThresholdLeft && elapsedTimeMS > 200) {
-            var leftUp = Vec3.sum(leftHandPos, Vec3.multiply(Quat.getUp(leftHandPos), .2));
-            movementEngine(leftUp, leftEntities, HAND_STILL_FIREFLY_VALUES, true, false);
+        } else if (!overMovementThresholdLeft && leftHandDist < (DEFAULT_FIREFLY_VALUES.extents.max + EXTENTS_BUFFER) * INTERACTIVE_RANGE_MULTIPLIER
+            && elapsedTimeMS > 200) {
+
+            updateMovementLockKeys();
+
+            if (leftEntities.length > 0) {
+                var leftUp = Vec3.sum(leftHandPos, Vec3.multiply(Quat.getUp(leftHandPos), .2));
+                movementEngine(leftHandPos, leftEntities, HAND_STILL_FIREFLY_VALUES, true, false);
+            }
+
         }
 
         if (overMovementThresholdRight && rightHandDist < DEFAULT_FIREFLY_VALUES.extents.max + EXTENTS_BUFFER) {
+            updateMovementLockKeys();
             movementEngine(rightHandPos, rightEntities, REPEL_VALUES, true, true);
-        } else if (!overMovementThresholdRight && elapsedTimeMS > 200) {
-            var rightUp = Vec3.sum(rightHandPos, Vec3.multiply(Quat.getUp(rightHandPos), .2));
-           // debug.send('RIGHT', JSON.stringify(rightUp),JSON.stringify(rightHandPos));
-            movementEngine(rightUp, rightEntities, HAND_STILL_FIREFLY_VALUES, true, false);
+        } else if (!overMovementThresholdRight && rightHandDist < (DEFAULT_FIREFLY_VALUES.extents.max + EXTENTS_BUFFER) * INTERACTIVE_RANGE_MULTIPLIER
+            && elapsedTimeMS > 200) {
+            updateMovementLockKeys();
+            if (rightEntities.length > 0) {
+                var rightUp = Vec3.sum(rightHandPos, Vec3.multiply(Quat.getUp(rightHandPos), .2));
+                debug.send('RIGHT', JSON.stringify(rightUp), JSON.stringify(rightHandPos));
+                movementEngine(rightHandPos, rightEntities, HAND_STILL_FIREFLY_VALUES, true, false);
+            }
+
+        }
+
+        if(rightHandDist > (DEFAULT_FIREFLY_VALUES.extents.max + EXTENTS_BUFFER) * INTERACTIVE_RANGE_MULTIPLIER
+        && leftHandDist > (DEFAULT_FIREFLY_VALUES.extents.max + EXTENTS_BUFFER) * INTERACTIVE_RANGE_MULTIPLIER) {
+            updateMovementLockKeys();
         }
 
         if (elapsedTimeMS > 200) {
