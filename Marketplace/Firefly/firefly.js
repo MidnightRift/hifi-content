@@ -31,7 +31,8 @@
         //Items in this locked from the movement engine.
         MOVEMENT_ENGINE_LOCK_KEYS = [],
         FIREFLY_ANCHOR_POINT,
-        movementInterval;
+        movementInterval,
+        DEFAULT_UPDATE_INTERVAL = 200; //ms
 
     var DEFAULT_FIREFLY_VALUES = {
             extents: {min: .1, max: .4},
@@ -61,6 +62,45 @@
         text: APP_NAME
     });
 
+    var lightElapsedTimeMS = 0;
+    function maybeAddLight() {
+        lightElapsedTimeMS += DEFAULT_UPDATE_INTERVAL;
+        for (var i = 0; i < FIREFLY_ENTITY_KEYS.length; ++i) {
+
+            if(randomNumber(0,100) > 5){
+                continue;
+            }
+            if(lightElapsedTimeMS < 5000) {
+                continue;
+            }
+
+            Entities.addEntity({
+                type: "Light",
+                name: "Firefly Light",
+                intensity: 1.0,
+                falloffRadius: 1.0,
+                dimensions: {
+                    x: 1,
+                    y: 1,
+                    z: 1
+                },
+                position: Entities.getEntityProperties(FIREFLY_ENTITY_KEYS[i], 'position').position,
+                parentID: FIREFLY_ENTITY_KEYS[i],
+                color: {
+                    red: 22,
+                    green: 22,
+                    blue: 0
+                },
+                lifetime:  5
+            });
+
+
+        }
+        if (lightElapsedTimeMS > 5000) {
+            lightElapsedTimeMS = 0;
+        }
+
+    }
 
     function movementEngine(anchor, keys, values, skipLockCheck, repel) {
 
@@ -143,8 +183,9 @@
         movementEngine(FIREFLY_ANCHOR_POINT, FIREFLY_ENTITY_KEYS, DEFAULT_FIREFLY_VALUES, false, false);
         movementInterval = Script.setInterval(function () {
             debug.send('me 200ms interval next');
-            movementEngine(FIREFLY_ANCHOR_POINT, FIREFLY_ENTITY_KEYS, DEFAULT_FIREFLY_VALUES, false, false)
-        }, 200);
+            movementEngine(FIREFLY_ANCHOR_POINT, FIREFLY_ENTITY_KEYS, DEFAULT_FIREFLY_VALUES, false, false);
+            maybeAddLight();
+        }, DEFAULT_UPDATE_INTERVAL);
 
     }
 
@@ -180,14 +221,14 @@
         if (overMovementThresholdLeft && leftHandDist < DEFAULT_FIREFLY_VALUES.extents.max + EXTENTS_BUFFER) {
             leftEntities = Entities.findEntities(leftHandPos, .2);
         } else if (!overMovementThresholdLeft && leftHandDist < (DEFAULT_FIREFLY_VALUES.extents.max + EXTENTS_BUFFER) * INTERACTIVE_RANGE_MULTIPLIER
-            && elapsedTimeMS > 200) {
+            && elapsedTimeMS > DEFAULT_UPDATE_INTERVAL) {
             leftEntities = Entities.findEntities(leftHandPos, .5);
         }
 
         if (overMovementThresholdRight && rightHandDist < DEFAULT_FIREFLY_VALUES.extents.max + EXTENTS_BUFFER) {
             rightEntities = Entities.findEntities(rightHandPos, .2);
         } else if (!overMovementThresholdRight && rightHandDist < (DEFAULT_FIREFLY_VALUES.extents.max + EXTENTS_BUFFER) * INTERACTIVE_RANGE_MULTIPLIER
-            && elapsedTimeMS > 200) {
+            && elapsedTimeMS > DEFAULT_UPDATE_INTERVAL) {
             rightEntities = Entities.findEntities(rightHandPos, .5);
         }
 
@@ -203,7 +244,7 @@
             updateMovementLockKeys();
             movementEngine(leftHandPos, leftEntities, REPEL_VALUES, true, true);
         } else if (!overMovementThresholdLeft && leftHandDist < (DEFAULT_FIREFLY_VALUES.extents.max + EXTENTS_BUFFER) * INTERACTIVE_RANGE_MULTIPLIER
-            && elapsedTimeMS > 200) {
+            && elapsedTimeMS > DEFAULT_UPDATE_INTERVAL) {
 
             updateMovementLockKeys();
 
@@ -218,7 +259,7 @@
             updateMovementLockKeys();
             movementEngine(rightHandPos, rightEntities, REPEL_VALUES, true, true);
         } else if (!overMovementThresholdRight && rightHandDist < (DEFAULT_FIREFLY_VALUES.extents.max + EXTENTS_BUFFER) * INTERACTIVE_RANGE_MULTIPLIER
-            && elapsedTimeMS > 200) {
+            && elapsedTimeMS > DEFAULT_UPDATE_INTERVAL) {
             updateMovementLockKeys();
             if (rightEntities.length > 0) {
                 var rightUp = Vec3.sum(rightHandPos, Vec3.multiply(Quat.getUp(rightHandPos), .2));
@@ -233,7 +274,7 @@
             updateMovementLockKeys();
         }
 
-        if (elapsedTimeMS > 200) {
+        if (elapsedTimeMS > DEFAULT_UPDATE_INTERVAL) {
             elapsedTimeMS = 0;
         }
 
