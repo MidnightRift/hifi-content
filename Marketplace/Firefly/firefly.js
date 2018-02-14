@@ -142,9 +142,7 @@
                 var newOrientation = Quat.normalize(Quat.multiply(Quat.rotationBetween(localUp, direction), ent.orientation));
 
 
-                // debug.send('Movement Engine');
                 Entities.editEntity(keys[i], {orientation: newOrientation});
-                //Entities.editEntity(keys[i], {velocity: randomVelocity(newOrientation, values.velocity.min, values.velocity.max, 5, 80)});
 
                 Entities.editEntity(keys[i], {velocity: Vec3.mix(ent.velocity, randomVelocity(newOrientation, values.velocity.min, values.velocity.max, 5, 80), 0.5)});
             }
@@ -170,7 +168,7 @@
         for (var i = 0; i < makeFireflyNum; ++i) {
             var props = {
                 type: 'Model',
-                modelURL: Script.resolvePath('assets/sphere-firefly-17.fbx'),
+                modelURL: Script.resolvePath('assets/firefly.fbx'),
                 lifetime: '360',
                 name: 'Firefly',
                 dimensions: {z: 0.02, y: 0.02, x: 0.02},
@@ -208,8 +206,6 @@
         var overMovementThresholdLeft = (MOVEMENT_THRESHOLD < Vec3.distance(lastPosition.left, leftHandPos));
         var overMovementThresholdRight = (MOVEMENT_THRESHOLD < Vec3.distance(lastPosition.right, rightHandPos));
 
-        //debug.send({color: 'blue'}, JSON.stringify(lastPosition.left), JSON.stringify(leftHandPos));
-        //debug.send({color: 'purple'}, JSON.stringify(lastPosition.right), JSON.stringify(rightHandPos));
         var leftHandDist = Vec3.distance(leftHandPos, FIREFLY_ANCHOR_POINT);
         var rightHandDist = Vec3.distance(rightHandPos, FIREFLY_ANCHOR_POINT);
 
@@ -239,7 +235,7 @@
         }
 
 
-        //debug.send('hw interval(s) next');
+        debug.send('hw interval(s) next');
         if (overMovementThresholdLeft && leftHandDist < DEFAULT_FIREFLY_VALUES.extents.max + EXTENTS_BUFFER) {
             updateMovementLockKeys();
             movementEngine(leftHandPos, leftEntities, REPEL_VALUES, true, true);
@@ -263,7 +259,6 @@
             updateMovementLockKeys();
             if (rightEntities.length > 0) {
                 var rightUp = Vec3.sum(rightHandPos, Vec3.multiply(Quat.getUp(rightHandPos), .2));
-                debug.send('RIGHT', JSON.stringify(rightUp), JSON.stringify(rightHandPos));
                 movementEngine(rightHandPos, rightEntities, HAND_STILL_FIREFLY_VALUES, true, false);
             }
 
