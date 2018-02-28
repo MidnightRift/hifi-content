@@ -18,7 +18,7 @@
 
         var velocity = Vec3.multiply(SPEED, Vec3.UNIT_Y);
         velocity = Vec3.multiplyQbyV(Quat.fromPitchYawRollDegrees(ANGLE, 0.0, 0.0), velocity);
-        velocity = Vec3.multiplyQbyV(Quat.fromPitchYawRollDegrees(0.0, randomNumber(0, 180), 0.0), velocity);
+        velocity = Vec3.multiplyQbyV(Quat.fromPitchYawRollDegrees(0.0, randomNumber(minAngle, maxAngle), 0.0), velocity);
         velocity = Vec3.multiplyQbyV(entityRot, velocity);
         return velocity;
     }
@@ -39,7 +39,7 @@
             velocity: {min: 0.05, max: 0.15}
         },
         HAND_STILL_FIREFLY_VALUES = {
-            extents: {min: .1, max: .2},
+            extents: {min: .05, max: .1},
             velocity: {min: 0.05, max: 0.08}
         },
         REPEL_VALUES = {
@@ -48,6 +48,7 @@
         EXTENTS_BUFFER = 0.05,
         INTERACTIVE_RANGE_MULTIPLIER = 2,
         MOVEMENT_THRESHOLD = .01,
+        MAX_ANCHOR_DISTANCE = 2,
         lastPosition = {
             left: null,
             right: null
@@ -102,10 +103,32 @@
 
     }
 
+
+
+    function createFireflyAnchorPoint() {
+        var orientationRotated45Degrees = Quat.angleAxis(45, Quat.getUp(MyAvatar.orientation));
+
+        var forward = Vec3.sum(MyAvatar.position, Vec3.multiply(Quat.getForward(MyAvatar.orientation), 1));
+
+        FIREFLY_ANCHOR_POINT = Vec3.sum(forward, Vec3.multiply(Quat.getUp(MyAvatar.orientation), 0.2));
+        debug.send({color: 'blue'}, 'NEW ANCHOR POINT::', JSON.stringify(FIREFLY_ANCHOR_POINT));
+    }
+
+
+    function maybeMoveAnchorPoint() {
+
+        var distanceFromAnchor = Vec3.distance(MyAvatar.position, FIREFLY_ANCHOR_POINT);
+
+        if(distanceFromAnchor > MAX_ANCHOR_DISTANCE) {
+            createFireflyAnchorPoint();
+        }
+
+    }
+
     function movementEngine(anchor, keys, values, skipLockCheck, repel) {
 
-        debug.send({color: 'red'}, 'ME::', JSON.stringify(MOVEMENT_ENGINE_LOCK_KEYS));
-        debug.send({color: 'red'}, 'ME::anchor->', JSON.stringify(anchor));
+       // debug.send({color: 'red'}, 'ME::', JSON.stringify(MOVEMENT_ENGINE_LOCK_KEYS));
+       // debug.send({color: 'red'}, 'ME::anchor->', JSON.stringify(anchor));
 
         for (var i = 0; i < keys.length; ++i) {
 
@@ -117,7 +140,7 @@
                     continue;
                 }
 
-                var ent = Entities.getEntityProperties(keys[i], ['position', 'orientation', 'name', 'velocity']);
+                var ent = Entities.getEntityProperties(keys[i], ['position', 'name', 'velocity', 'rotation']);
                 if (ent.name !== 'Firefly') {
                     continue;
                 }
@@ -137,19 +160,27 @@
                     }
                 }
 
+                var velocityBoost = 1;
+                if (distanceFromAnchor > MAX_ANCHOR_DISTANCE) {
+                    velocityBoost = distanceFromAnchor * 3;
+                }
 
-                var localUp = Quat.getUp(ent.orientation);
-                var newOrientation = Quat.normalize(Quat.multiply(Quat.rotationBetween(localUp, direction), ent.orientation));
+                var localUp = Quat.getUp(ent.rotation);
+
+                var newOrientation = Quat.normalize(Quat.multiply(Quat.rotationBetween(localUp, direction), ent.rotation));
 
 
-                Entities.editEntity(keys[i], {orientation: newOrientation});
+                Entities.editEntity(keys[i], {rotation: newOrientation});
 
-                Entities.editEntity(keys[i], {velocity: Vec3.mix(ent.velocity, randomVelocity(newOrientation, values.velocity.min, values.velocity.max, 5, 80), 0.5)});
+                Entities.editEntity(keys[i], {velocity: Vec3.mix(ent.velocity,
+                    randomVelocity(newOrientation, values.velocity.min * velocityBoost, values.velocity.max * velocityBoost, 5, 40/velocityBoost), 0.5)});
             }
         }
 
 
     }
+
+
 
     function createFireFlys() {
 
@@ -157,12 +188,7 @@
 
         needsLocalEntity = !(Entities.canRezTmp() || Entities.canRez());
 
-        var orientationRotated45Degrees = Quat.angleAxis(45, Quat.getUp(MyAvatar.orientation));
-
-        var forward = Vec3.sum(MyAvatar.position, Vec3.multiply(Quat.getForward(orientationRotated45Degrees), 1));
-
-
-        FIREFLY_ANCHOR_POINT = Vec3.sum(forward, Vec3.multiply(Quat.getUp(orientationRotated45Degrees), 0.2));
+        createFireflyAnchorPoint();
 
 
         for (var i = 0; i < makeFireflyNum; ++i) {
@@ -173,16 +199,17 @@
                 name: 'Firefly',
                 dimensions: {z: 0.02, y: 0.02, x: 0.02},
                 position: Vec3.sum(FIREFLY_ANCHOR_POINT,
-                    {x: (randomNumber(20, 80) / 100), y: (randomNumber(20, 80) / 100), z: (randomNumber(20, 80) / 100)})
+                    {x: (randomNumber(-40, 40) / 100), y: (randomNumber(-40, 40) / 100), z: (randomNumber(-40, 40) / 100)})
             };
 
             FIREFLY_ENTITY_KEYS.push(Entities.addEntity(props, needsLocalEntity));
         }
         movementEngine(FIREFLY_ANCHOR_POINT, FIREFLY_ENTITY_KEYS, DEFAULT_FIREFLY_VALUES, false, false);
         movementInterval = Script.setInterval(function () {
-            debug.send('me 200ms interval next');
+           // debug.send('me 200ms interval next');
             movementEngine(FIREFLY_ANCHOR_POINT, FIREFLY_ENTITY_KEYS, DEFAULT_FIREFLY_VALUES, false, false);
             maybeAddLight();
+            maybeMoveAnchorPoint();
         }, DEFAULT_UPDATE_INTERVAL);
 
     }
@@ -235,7 +262,7 @@
         }
 
 
-        debug.send('hw interval(s) next');
+       // debug.send('hw interval(s) next');
         if (overMovementThresholdLeft && leftHandDist < DEFAULT_FIREFLY_VALUES.extents.max + EXTENTS_BUFFER) {
             updateMovementLockKeys();
             movementEngine(leftHandPos, leftEntities, REPEL_VALUES, true, true);
@@ -245,8 +272,8 @@
             updateMovementLockKeys();
 
             if (leftEntities.length > 0) {
-                var leftUp = Vec3.sum(leftHandPos, Vec3.multiply(Quat.getUp(leftHandPos), .2));
-                movementEngine(leftHandPos, leftEntities, HAND_STILL_FIREFLY_VALUES, true, false);
+                var leftFwd = Vec3.sum(leftHandPos, Vec3.multiply(Quat.getForward(leftHandPos), .1));
+                movementEngine(leftFwd, leftEntities, HAND_STILL_FIREFLY_VALUES, true, false);
             }
 
         }
@@ -258,8 +285,8 @@
             && elapsedTimeMS > DEFAULT_UPDATE_INTERVAL) {
             updateMovementLockKeys();
             if (rightEntities.length > 0) {
-                var rightUp = Vec3.sum(rightHandPos, Vec3.multiply(Quat.getUp(rightHandPos), .2));
-                movementEngine(rightHandPos, rightEntities, HAND_STILL_FIREFLY_VALUES, true, false);
+                var rightFwd = Vec3.sum(rightHandPos, Vec3.multiply(Quat.getForward(rightHandPos), .1));
+                movementEngine(rightFwd, rightEntities, HAND_STILL_FIREFLY_VALUES, true, false);
             }
 
         }
